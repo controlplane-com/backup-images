@@ -10,13 +10,21 @@ Built images are published to DockerHub at [hub.docker.com/u/controlplanecorpora
 
 | Image | Base | Tool |
 |---|---|---|
-| `backup-mysql` | `mysql:8-debian` | `mysqldump` |
-| `backup-mongo` | `mongo:7-jammy` | `mongodump` |
-| `backup-postgres` | `postgres:18` | `pg_dumpall` |
-| `backup-redis` | `redis:7-bookworm` | `redis-cli --rdb` |
-| `backup-tidb` | `debian:bookworm-slim` | TiDB BR |
+| `mysql-backup` | `mysql:8-debian` | `mysqldump` |
+| `mongo-backup` | `mongo:7-jammy` | `mongodump` |
+| `postgres-backup` | `postgres:18` | `pg_dumpall` |
+| `redis-backup` | `redis:7-bookworm` | `redis-cli --rdb` |
+| `tidb-backup` | `debian:bookworm-slim` | TiDB BR |
+
+> **Manticore Search:** The backup source code for Manticore Search is maintained in a separate repository at [github.com/controlplane-com/manticore-orchestrator](https://github.com/controlplane-com/manticore-orchestrator).
 
 Each image runs a single backup on container start and exits. They are intended to be run as cron jobs or one-shot workloads within Control Plane.
+
+### Image Versioning
+
+- **MySQL, MongoDB, Redis** — versioned independently of the database version, starting at `1.0` and incremented sequentially (e.g., `1.0`, `1.1`, `1.2`).
+- **PostgreSQL** — image versions are tied to the major PostgreSQL version. The minor version increments independently. For example, `17.1.0` targets `postgres:17` and `18.1.0` targets `postgres:18`.
+- **TiDB** — image versions match the TiDB release. For example, `8.5.3` corresponds to `pingcap/tidb:8.5.3`.
 
 ---
 
@@ -97,19 +105,19 @@ For Redis **cluster mode**, the following are also required:
 
 ```
 backups/
-├── backup-mongo/
+├── mongo-backup/
 │   ├── Dockerfile
 │   └── backup.sh
-├── backup-mysql/
+├── mysql-backup/
 │   ├── Dockerfile
 │   └── backup.sh
-├── backup-postgres/
+├── postgres-backup/
 │   ├── Dockerfile
 │   └── backup.sh
-├── backup-redis/
+├── redis-backup/
 │   ├── Dockerfile
 │   └── backup.sh
-└── backup-tidb/
+└── tidb-backup/
     ├── Dockerfile
     └── backup.sh
 ```
@@ -123,7 +131,7 @@ Pull requests are welcome. If you are fixing a bug or adding support for a new p
 1. Fork the repo and create a branch from `main`.
 2. Test your changes by building the image locally:
    ```bash
-   docker build -t backup-<db>:local ./backup-<db>
+   docker build -t <db>-backup:local ./<db>-backup
    ```
 3. Open a pull request with a clear description of the change.
 
