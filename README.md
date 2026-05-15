@@ -2,7 +2,7 @@
 
 This repository contains the source code for the database backup Docker images used in the [Control Plane Templates Catalog](https://docs.controlplane.com/template-catalog).
 
-Built images are published to DockerHub at [hub.docker.com/u/controlplanecorporation](https://hub.docker.com/u/controlplanecorporation).
+Built images are published to the GitHub Container Registry under `ghcr.io/controlplane-com/backup-images`.
 
 ---
 
@@ -141,6 +141,18 @@ make build-push-all REGISTRY=ghcr.io/your-org TAG=v1.0.0
 ```
 
 Valid `IMAGE` values: `cockroach-backup`, `postgres-backup`, `redis-backup`, `mongo-backup`, `mysql-backup`, `tidb-backup`.
+
+---
+
+## Publishing a Production Image
+
+To publish an image to GHCR, run the **Publish Image** workflow manually from the Actions tab:
+
+1. Go to **Actions → Publish Image → Run workflow**
+2. Enter the image name (e.g. `cockroach-backup`) and the tag (e.g. `1.0.0`)
+3. Click **Run workflow**
+
+The image will be pushed to `ghcr.io/controlplane-com/backup-images/<image>:<tag>`.
 
 ---
 
