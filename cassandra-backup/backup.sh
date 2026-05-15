@@ -61,8 +61,8 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
     | sed -n '4,$p' | grep -v "^$" | grep -v "^(" | awk '{print $1}')
 
   if [ -z "${TABLES}" ]; then
-    echo "ERROR: No tables found in keyspace '${CASSANDRA_KEYSPACE}'" >&2
-    exit 1
+    echo "No tables found in keyspace '${CASSANDRA_KEYSPACE}' — nothing to back up."
+    exit 0
   fi
 
   echo "Tables: ${TABLES}"
