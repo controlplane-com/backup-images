@@ -4,6 +4,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     awscli \
     ca-certificates \
+    cron \
     curl \
     gnupg \
  && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
@@ -13,12 +14,6 @@ RUN apt-get update \
  && apt-get update \
  && apt-get install -y --no-install-recommends google-cloud-cli \
  && rm -rf /var/lib/apt/lists/*
-
-# supercronic for sidecar scheduling (physical backup mode)
-ARG SUPERCRONIC_VERSION=0.2.33
-RUN curl -fsSLo /usr/local/bin/supercronic \
-    "https://github.com/aptible/supercronic/releases/download/v${SUPERCRONIC_VERSION}/supercronic-linux-${TARGETARCH:-amd64}" \
- && chmod +x /usr/local/bin/supercronic
 
 COPY backup.sh /usr/local/bin/backup.sh
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
