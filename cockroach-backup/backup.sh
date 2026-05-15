@@ -14,7 +14,7 @@ echo "Starting CockroachDB backup to ${BACKUP_PROVIDER}..."
 
 cockroach sql \
   --insecure \
-  --host="${COCKROACH_HOST}:26257" \
+  --host="${COCKROACH_HOST}:${COCKROACH_PORT:-26257}" \
   --execute="BACKUP INTO '${STORAGE}' AS OF SYSTEM TIME '-10s';"
 
 echo "Backup complete."
