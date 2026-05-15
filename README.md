@@ -124,6 +124,26 @@ backups/
 
 ---
 
+## Local Development
+
+Use the Makefile to build and push images locally. Set `REGISTRY`, `IMAGE`, and `TAG` as needed:
+
+```bash
+# Build a single image
+make build IMAGE=cockroach-backup
+
+# Build and push
+make build-push IMAGE=postgres-backup REGISTRY=ghcr.io/your-org TAG=v1.0.0
+
+# Build or push all images
+make build-all
+make build-push-all REGISTRY=ghcr.io/your-org TAG=v1.0.0
+```
+
+Valid `IMAGE` values: `cockroach-backup`, `postgres-backup`, `redis-backup`, `mongo-backup`, `mysql-backup`, `tidb-backup`.
+
+---
+
 ## Contributing
 
 Pull requests are welcome. If you are fixing a bug or adding support for a new provider, please:
@@ -131,7 +151,7 @@ Pull requests are welcome. If you are fixing a bug or adding support for a new p
 1. Fork the repo and create a branch from `main`.
 2. Test your changes by building the image locally:
    ```bash
-   docker build -t <db>-backup:local ./<db>-backup
+   make build IMAGE=<db>-backup
    ```
 3. Open a pull request with a clear description of the change.
 
