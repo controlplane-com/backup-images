@@ -34,4 +34,4 @@ jobs:
           context: ${{ inputs.image }}
           push: true
           tags: ghcr.io/controlplane-com/backup-images/${{ inputs.image }}:${{ inputs.tag }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
