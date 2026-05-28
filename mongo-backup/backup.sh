@@ -12,7 +12,7 @@ echo "[INFO] Starting MongoDB backup (${TIMESTAMP})"
 if [ -n "${MONGO_URI:-}" ]; then
   CONNECTION_URI="${MONGO_URI}"
 else
-  CONNECTION_URI="mongodb://${MONGO_USER:-}:${MONGO_PASSWORD:-}@${MONGO_HOST}:${MONGO_PORT:-27017}"
+  CONNECTION_URI="mongodb://${MONGO_USER:-}:${MONGO_PASSWORD:-}@${MONGO_HOST}:${MONGO_PORT:-27017}/?authSource=admin${MONGO_RS:+&replicaSet=${MONGO_RS}}&readPreference=secondaryPreferred"
 fi
 
 # Dump: use --archive for a single-file output, gzip compressed.
