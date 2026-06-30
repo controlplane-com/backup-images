@@ -34,6 +34,8 @@ All images support backing up to either AWS S3 or Google Cloud Storage. The targ
 
 Cloud credentials must be available at runtime — either via workload identity (recommended) or by injecting the appropriate environment variables (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for AWS, or `GOOGLE_APPLICATION_CREDENTIALS` for GCP).
 
+`postgres-backup` additionally supports `BACKUP_PROVIDER=minio` for self-hosted, S3-compatible MinIO targets. See the PostgreSQL section below.
+
 ---
 
 ## Environment Variables
@@ -74,6 +76,9 @@ Cloud credentials must be available at runtime — either via workload identity 
 | `PG_USER` | Username (default: `root`) |
 | `PG_PASSWORD` | Password |
 | `AWS_REGION` | Required when `BACKUP_PROVIDER=aws` |
+| `MINIO_ENDPOINT` | Required when `BACKUP_PROVIDER=minio` — e.g. `http://my-minio:9000` |
+| `MINIO_ACCESS_KEY` | Required when `BACKUP_PROVIDER=minio` |
+| `MINIO_SECRET_KEY` | Required when `BACKUP_PROVIDER=minio` |
 
 ### Redis
 

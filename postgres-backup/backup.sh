@@ -12,7 +12,7 @@ echo "Starting Postgres backup job"
 : "${PG_PASSWORD:?Missing PG_PASSWORD}"
 
 # Validate backup variables
-: "${BACKUP_PROVIDER:?Missing BACKUP_PROVIDER (aws|gcp)}"
+: "${BACKUP_PROVIDER:?Missing BACKUP_PROVIDER (aws|gcp|minio)}"
 : "${BACKUP_BUCKET:?Missing BACKUP_BUCKET}"
 : "${BACKUP_PREFIX:?Missing BACKUP_PREFIX}"
 
@@ -47,6 +47,25 @@ elif [ "${BACKUP_PROVIDER}" = "gcp" ]; then
     --username="${PG_USER}" \
   | gzip \
   | gsutil cp - "gs://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${FILENAME}"
+
+elif [ "${BACKUP_PROVIDER}" = "minio" ]; then
+  : "${MINIO_ENDPOINT:?Missing MINIO_ENDPOINT}"
+  : "${MINIO_ACCESS_KEY:?Missing MINIO_ACCESS_KEY}"
+  : "${MINIO_SECRET_KEY:?Missing MINIO_SECRET_KEY}"
+
+  # MinIO buckets generally aren't reachable via virtual-hosted-style DNS, so force path-style addressing.
+  aws configure set default.s3.addressing_style path
+
+  export AWS_DEFAULT_REGION="us-east-1"
+  export AWS_ACCESS_KEY_ID="${MINIO_ACCESS_KEY}"
+  export AWS_SECRET_ACCESS_KEY="${MINIO_SECRET_KEY}"
+
+  pg_dumpall \
+    --host="${PG_HOST}" \
+    --port="${PG_PORT}" \
+    --username="${PG_USER}" \
+  | gzip \
+  | aws s3 cp - "s3://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${FILENAME}" --endpoint-url "${MINIO_ENDPOINT}"
 
 else
   echo "Unsupported BACKUP_PROVIDER: ${BACKUP_PROVIDER}" >&2
