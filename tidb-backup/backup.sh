@@ -21,6 +21,17 @@ fi
 BR_EXTRA_FLAGS=""
 if [ "${BACKUP_PROVIDER}" = "aws" ]; then
   BR_EXTRA_FLAGS="--s3.region=${AWS_REGION}"
+elif [ "${BACKUP_PROVIDER}" = "gcp" ]; then
+  # BR defaults --send-credentials-to-tikv=true, which requires an explicit
+  # --gcs.credentials_file. On Control Plane the credentials come from the GCP
+  # metadata emulation and there is no key file, so BR exits 1 immediately —
+  # fast enough that the job looks like a silent failure.
+  #
+  # With this false, each TiKV resolves GCS credentials itself. That only works
+  # from TiDB v8.5.7, where TiKV enables the `gcp_v2` external storage backend
+  # by default (gcp_v2 supports ADC / the metadata server; the legacy backend
+  # did not, and failed SST uploads with "I/O permission denied").
+  BR_EXTRA_FLAGS="--send-credentials-to-tikv=false"
 fi
 
 br backup full \
