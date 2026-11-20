@@ -61,7 +61,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
     gunzip -c "${GZ_FILE}" > "${CSV_FILE}"
 
     cqlsh ${CQLSH_OPTS} -e \
-      "COPY ${CASSANDRA_KEYSPACE}.${TABLE} FROM '${CSV_FILE}' WITH HEADER=true;" \
+      "COPY ${CASSANDRA_KEYSPACE}.\"${TABLE}\" FROM '${CSV_FILE}' WITH HEADER=true;" \
       || { echo "WARN: Restore failed for ${TABLE}"; FAILED=$((FAILED + 1)); }
 
     rm -f "${CSV_FILE}"

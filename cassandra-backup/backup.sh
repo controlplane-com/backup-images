@@ -55,17 +55,27 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
   CQLSH_OPTS="--no-color -u ${CASSANDRA_USER} -p ${CASSANDRA_PASSWORD} ${CASSANDRA_HOST} ${CASSANDRA_PORT}"
 
   echo "Fetching table list for keyspace: ${CASSANDRA_KEYSPACE}"
-  # Parse the ASCII-table output: skip the header/separator (first 3 lines) and the row-count footer
-  TABLES=$(cqlsh ${CQLSH_OPTS} -e \
-    "SELECT table_name FROM system_schema.tables WHERE keyspace_name='${CASSANDRA_KEYSPACE}';" \
-    | sed -n '4,$p' | grep -v "^$" | grep -v "^(" | awk '{print $1}')
+  # cqlsh prints an ASCII table: an optional blank line, the `table_name` header, a `-----`
+  # separator, one name per row, a blank line and a `(N rows)` footer. How many lines come
+  # before the header differs between cqlsh versions, so parse by pattern, not by line
+  # number: take only the rows after the separator, up to the first blank line, and keep
+  # only lines that are a plain CQL identifier. A failed query aborts the run (set -e).
+  TABLE_OUTPUT=$(cqlsh ${CQLSH_OPTS} -e \
+    "SELECT table_name FROM system_schema.tables WHERE keyspace_name='${CASSANDRA_KEYSPACE}';")
+  TABLES=$(printf '%s\n' "${TABLE_OUTPUT}" | awk '
+    /^[[:space:]]*-+[[:space:]]*$/ { in_rows = 1; next }
+    in_rows && /^[[:space:]]*$/    { exit }
+    in_rows {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+      if ($0 ~ /^[A-Za-z0-9_]+$/) print
+    }')
 
   if [ -z "${TABLES}" ]; then
     echo "No tables found in keyspace '${CASSANDRA_KEYSPACE}' — nothing to back up."
     exit 0
   fi
 
-  echo "Tables: ${TABLES}"
+  echo "Tables: $(printf '%s ' ${TABLES})"
   FAILED=0
 
   for TABLE in ${TABLES}; do
@@ -73,15 +83,23 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
     TMP_FILE="/tmp/${TABLE}.csv"
     TMP_GZ="/tmp/${TABLE}.csv.gz"
 
+    rm -f "${TMP_FILE}" "${TMP_GZ}"
+    # Quote the table name: system_schema stores it exactly, and an unquoted mixed-case
+    # name would be lower-cased by CQL.
     cqlsh ${CQLSH_OPTS} -e \
-      "COPY ${CASSANDRA_KEYSPACE}.${TABLE} TO '${TMP_FILE}' WITH HEADER=true;" \
+      "COPY ${CASSANDRA_KEYSPACE}.\"${TABLE}\" TO '${TMP_FILE}' WITH HEADER=true;" \
       || { echo "WARN: Export failed for ${TABLE}"; FAILED=$((FAILED + 1)); continue; }
+
+    # cqlsh can exit 0 without writing the file; treat that as a failed export.
+    [ -f "${TMP_FILE}" ] \
+      || { echo "WARN: Export produced no file for ${TABLE}"; FAILED=$((FAILED + 1)); continue; }
 
     gzip -c "${TMP_FILE}" > "${TMP_GZ}"
     rm -f "${TMP_FILE}"
 
     DEST="${BACKUP_PREFIX}/${TIMESTAMP}/${CASSANDRA_KEYSPACE}/${TABLE}.csv.gz"
-    upload "${TMP_GZ}" "${DEST}"
+    upload "${TMP_GZ}" "${DEST}" \
+      || { echo "WARN: Upload failed for ${TABLE}"; FAILED=$((FAILED + 1)); rm -f "${TMP_GZ}"; continue; }
     rm -f "${TMP_GZ}"
 
     echo "Stored: ${BACKUP_PROVIDER}://${BACKUP_BUCKET}/${DEST}"
