@@ -105,6 +105,13 @@ elif [ "${BACKUP_TYPE}" = "physical" ]; then
     # Extract table name by stripping the trailing -<32 hex chars> UUID suffix
     TABLE_NAME=$(echo "${TABLE_UUID_DIR}" | sed 's/-[0-9a-f]\{32\}$//')
 
+    # The snapshot holds every keyspace on the node. System keyspaces (node-local state, schema, roles
+    # and passwords) are never imported: loading them would roll back roles and passwords and overwrite
+    # this node's own ring state. Recreate the schema first if the tables are gone.
+    case "${KEYSPACE}" in
+      system|system_*) continue ;;
+    esac
+
     echo "--- Importing ${KEYSPACE}.${TABLE_NAME} ---"
     chown -R cassandra:cassandra "${SNAP_DIR}" 2>/dev/null || true
     nodetool -u cassandra -pw "${CASSANDRA_JMX_PASSWORD}" import "${KEYSPACE}" "${TABLE_NAME}" "${SNAP_DIR}" \
