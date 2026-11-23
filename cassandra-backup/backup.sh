@@ -35,7 +35,9 @@ sync_dir() {
     : "${AWS_REGION:?Missing AWS_REGION}"
     aws s3 sync "${src}/" "s3://${BACKUP_BUCKET}/${dest}/"
   elif [ "${BACKUP_PROVIDER}" = "gcp" ]; then
-    gsutil -m rsync -r "${src}/" "gs://${BACKUP_BUCKET}/${dest}/"
+    # gcloud storage with one process and a few threads (~100 MiB). `gsutil -m` starts a process per host
+    # CPU and peaks above the sidecar's 256Mi; an OOM-killed worker leaves gsutil hanging for ever.
+    CLOUDSDK_STORAGE_PROCESS_COUNT=1 CLOUDSDK_STORAGE_THREAD_COUNT=4 gcloud storage rsync -r "${src}/" "gs://${BACKUP_BUCKET}/${dest}/"
   else
     echo "Unsupported BACKUP_PROVIDER: ${BACKUP_PROVIDER}" >&2
     exit 1

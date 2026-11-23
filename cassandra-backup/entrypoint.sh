@@ -25,7 +25,8 @@ if [ -n "${BACKUP_SCHEDULE:-}" ]; then
   # Forward cron output to the container's stdout/stderr
   {
     echo "SHELL=/bin/bash"
-    echo "${BACKUP_SCHEDULE} root . ${ENV_FILE} && /usr/local/bin/backup.sh >> /proc/1/fd/1 2>> /proc/1/fd/2"
+    # flock -n: a run still going when the next one is due is left alone; the new one is skipped.
+    echo "${BACKUP_SCHEDULE} root . ${ENV_FILE} && { flock -n -E 75 /run/cassandra-backup.lock /usr/local/bin/backup.sh; [ \$? -ne 75 ] || echo \"Backup skipped: the previous run is still going\"; } >> /proc/1/fd/1 2>> /proc/1/fd/2"
   } > /etc/cron.d/cassandra-backup
   chmod 0644 /etc/cron.d/cassandra-backup
   echo "Physical backup scheduled: ${BACKUP_SCHEDULE} (UTC)"
