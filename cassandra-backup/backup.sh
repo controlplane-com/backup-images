@@ -5,6 +5,9 @@ export HOME="${HOME:-/tmp}"
 
 BACKUP_TYPE="${BACKUP_TYPE:-logical}"
 
+# shellcheck source=auth.sh
+. /usr/local/lib/cassandra-backup/auth.sh
+
 echo "Starting Cassandra backup — type: ${BACKUP_TYPE}"
 
 # === Common validation ===
@@ -54,7 +57,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
   : "${CASSANDRA_PASSWORD:?Missing CASSANDRA_PASSWORD}"
   : "${CASSANDRA_KEYSPACE:?Missing CASSANDRA_KEYSPACE}"
 
-  CQLSH_OPTS="--no-color -u ${CASSANDRA_USER} -p ${CASSANDRA_PASSWORD} ${CASSANDRA_HOST} ${CASSANDRA_PORT}"
+  cqlsh_auth "${CASSANDRA_USER}" "${CASSANDRA_PASSWORD}"
 
   echo "Fetching table list for keyspace: ${CASSANDRA_KEYSPACE}"
   # cqlsh prints an ASCII table: an optional blank line, the `table_name` header, a `-----`
@@ -62,7 +65,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
   # before the header differs between cqlsh versions, so parse by pattern, not by line
   # number: take only the rows after the separator, up to the first blank line, and keep
   # only lines that are a plain CQL identifier. A failed query aborts the run (set -e).
-  TABLE_OUTPUT=$(cqlsh ${CQLSH_OPTS} -e \
+  TABLE_OUTPUT=$(cql -e \
     "SELECT table_name FROM system_schema.tables WHERE keyspace_name='${CASSANDRA_KEYSPACE}';")
   TABLES=$(printf '%s\n' "${TABLE_OUTPUT}" | awk '
     /^[[:space:]]*-+[[:space:]]*$/ { in_rows = 1; next }
@@ -88,7 +91,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
     rm -f "${TMP_FILE}" "${TMP_GZ}"
     # Quote the table name: system_schema stores it exactly, and an unquoted mixed-case
     # name would be lower-cased by CQL.
-    cqlsh ${CQLSH_OPTS} -e \
+    cql -e \
       "COPY ${CASSANDRA_KEYSPACE}.\"${TABLE}\" TO '${TMP_FILE}' WITH HEADER=true;" \
       || { echo "WARN: Export failed for ${TABLE}"; FAILED=$((FAILED + 1)); continue; }
 
@@ -119,13 +122,14 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
 # =============================================================================
 elif [ "${BACKUP_TYPE}" = "physical" ]; then
   : "${CASSANDRA_JMX_PASSWORD:?Missing CASSANDRA_JMX_PASSWORD}"
+  nodetool_auth "${CASSANDRA_JMX_PASSWORD}"
 
   TAG="backup-${TIMESTAMP}"
   SNAPSHOT_BASE="/var/lib/cassandra/data"
   HOSTNAME_SHORT=$(hostname -s)
 
   echo "Creating snapshot: ${TAG}"
-  nodetool -u cassandra -pw "${CASSANDRA_JMX_PASSWORD}" snapshot -t "${TAG}"
+  nt snapshot -t "${TAG}"
 
   echo "Uploading snapshot files to ${BACKUP_PROVIDER}://${BACKUP_BUCKET}/${BACKUP_PREFIX}/${TIMESTAMP}/${HOSTNAME_SHORT}/"
   FAILED=0
@@ -138,7 +142,7 @@ elif [ "${BACKUP_TYPE}" = "physical" ]; then
   done < <(find "${SNAPSHOT_BASE}" -path "*/snapshots/${TAG}" -type d)
 
   echo "Clearing snapshot: ${TAG}"
-  nodetool -u cassandra -pw "${CASSANDRA_JMX_PASSWORD}" clearsnapshot -t "${TAG}"
+  nt clearsnapshot -t "${TAG}"
 
   if [ "${FAILED}" -gt 0 ]; then
     echo "ERROR: ${FAILED} snapshot dir(s) failed to sync." >&2

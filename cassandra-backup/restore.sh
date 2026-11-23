@@ -4,6 +4,9 @@ set -euo pipefail
 export HOME="${HOME:-/tmp}"
 
 BACKUP_TYPE="${BACKUP_TYPE:-logical}"
+
+# shellcheck source=auth.sh
+. /usr/local/lib/cassandra-backup/auth.sh
 : "${RESTORE_TIMESTAMP:?Missing RESTORE_TIMESTAMP — set to the backup timestamp, e.g. 2026-05-15T23-21-34Z}"
 
 echo "Starting Cassandra restore — type: ${BACKUP_TYPE}, timestamp: ${RESTORE_TIMESTAMP}"
@@ -43,7 +46,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
   : "${CASSANDRA_PASSWORD:?Missing CASSANDRA_PASSWORD}"
   : "${CASSANDRA_KEYSPACE:?Missing CASSANDRA_KEYSPACE}"
 
-  CQLSH_OPTS="--no-color -u ${CASSANDRA_USER} -p ${CASSANDRA_PASSWORD} ${CASSANDRA_HOST} ${CASSANDRA_PORT}"
+  cqlsh_auth "${CASSANDRA_USER}" "${CASSANDRA_PASSWORD}"
   S3_PATH="${BACKUP_BUCKET}/${BACKUP_PREFIX}/${RESTORE_TIMESTAMP}/${CASSANDRA_KEYSPACE}"
 
   echo "Downloading from ${BACKUP_PROVIDER}://${S3_PATH}"
@@ -62,7 +65,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
     echo "--- Restoring ${CASSANDRA_KEYSPACE}.${TABLE} ---"
     gunzip -c "${GZ_FILE}" > "${CSV_FILE}"
 
-    cqlsh ${CQLSH_OPTS} -e \
+    cql -e \
       "COPY ${CASSANDRA_KEYSPACE}.\"${TABLE}\" FROM '${CSV_FILE}' WITH HEADER=true;" \
       || { echo "WARN: Restore failed for ${TABLE}"; FAILED=$((FAILED + 1)); }
 
@@ -83,6 +86,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
 # =============================================================================
 elif [ "${BACKUP_TYPE}" = "physical" ]; then
   : "${CASSANDRA_JMX_PASSWORD:?Missing CASSANDRA_JMX_PASSWORD}"
+  nodetool_auth "${CASSANDRA_JMX_PASSWORD}"
 
   HOSTNAME_SHORT=$(hostname -s)
   S3_PATH="${BACKUP_BUCKET}/${BACKUP_PREFIX}/${RESTORE_TIMESTAMP}/${HOSTNAME_SHORT}"
@@ -116,7 +120,7 @@ elif [ "${BACKUP_TYPE}" = "physical" ]; then
 
     echo "--- Importing ${KEYSPACE}.${TABLE_NAME} ---"
     chown -R cassandra:cassandra "${SNAP_DIR}" 2>/dev/null || true
-    nodetool -u cassandra -pw "${CASSANDRA_JMX_PASSWORD}" import "${KEYSPACE}" "${TABLE_NAME}" "${SNAP_DIR}" \
+    nt import "${KEYSPACE}" "${TABLE_NAME}" "${SNAP_DIR}" \
       || { echo "WARN: nodetool import failed for ${KEYSPACE}.${TABLE_NAME}"; FAILED=$((FAILED + 1)); }
   done < <(find "${RESTORE_TMP}" -mindepth 4 -maxdepth 4 -type d)
 
