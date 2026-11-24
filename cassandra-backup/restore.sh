@@ -4,6 +4,9 @@ set -euo pipefail
 export HOME="${HOME:-/tmp}"
 
 BACKUP_TYPE="${BACKUP_TYPE:-logical}"
+
+# shellcheck source=auth.sh
+. /usr/local/lib/cassandra-backup/auth.sh
 : "${RESTORE_TIMESTAMP:?Missing RESTORE_TIMESTAMP — set to the backup timestamp, e.g. 2026-05-15T23-21-34Z}"
 
 echo "Starting Cassandra restore — type: ${BACKUP_TYPE}, timestamp: ${RESTORE_TIMESTAMP}"
@@ -24,7 +27,9 @@ download() {
     : "${AWS_REGION:?Missing AWS_REGION}"
     aws s3 sync "${src}/" "${dest}/"
   elif [ "${BACKUP_PROVIDER}" = "gcp" ]; then
-    gsutil -m rsync -r "${src}/" "${dest}/"
+    # gcloud storage with one process and a few threads (~100 MiB). `gsutil -m` starts a process per host
+    # CPU and peaks above the sidecar's 256Mi; an OOM-killed worker leaves gsutil hanging for ever.
+    CLOUDSDK_STORAGE_PROCESS_COUNT=1 CLOUDSDK_STORAGE_THREAD_COUNT=4 gcloud storage rsync -r "${src}/" "${dest}/"
   else
     echo "Unsupported BACKUP_PROVIDER: ${BACKUP_PROVIDER}" >&2
     exit 1
@@ -41,7 +46,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
   : "${CASSANDRA_PASSWORD:?Missing CASSANDRA_PASSWORD}"
   : "${CASSANDRA_KEYSPACE:?Missing CASSANDRA_KEYSPACE}"
 
-  CQLSH_OPTS="--no-color -u ${CASSANDRA_USER} -p ${CASSANDRA_PASSWORD} ${CASSANDRA_HOST} ${CASSANDRA_PORT}"
+  cqlsh_auth "${CASSANDRA_USER}" "${CASSANDRA_PASSWORD}"
   S3_PATH="${BACKUP_BUCKET}/${BACKUP_PREFIX}/${RESTORE_TIMESTAMP}/${CASSANDRA_KEYSPACE}"
 
   echo "Downloading from ${BACKUP_PROVIDER}://${S3_PATH}"
@@ -60,8 +65,8 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
     echo "--- Restoring ${CASSANDRA_KEYSPACE}.${TABLE} ---"
     gunzip -c "${GZ_FILE}" > "${CSV_FILE}"
 
-    cqlsh ${CQLSH_OPTS} -e \
-      "COPY ${CASSANDRA_KEYSPACE}.${TABLE} FROM '${CSV_FILE}' WITH HEADER=true;" \
+    cql -e \
+      "COPY ${CASSANDRA_KEYSPACE}.\"${TABLE}\" FROM '${CSV_FILE}' WITH HEADER=true;" \
       || { echo "WARN: Restore failed for ${TABLE}"; FAILED=$((FAILED + 1)); }
 
     rm -f "${CSV_FILE}"
@@ -81,6 +86,7 @@ if [ "${BACKUP_TYPE}" = "logical" ]; then
 # =============================================================================
 elif [ "${BACKUP_TYPE}" = "physical" ]; then
   : "${CASSANDRA_JMX_PASSWORD:?Missing CASSANDRA_JMX_PASSWORD}"
+  nodetool_auth "${CASSANDRA_JMX_PASSWORD}"
 
   HOSTNAME_SHORT=$(hostname -s)
   S3_PATH="${BACKUP_BUCKET}/${BACKUP_PREFIX}/${RESTORE_TIMESTAMP}/${HOSTNAME_SHORT}"
@@ -105,9 +111,16 @@ elif [ "${BACKUP_TYPE}" = "physical" ]; then
     # Extract table name by stripping the trailing -<32 hex chars> UUID suffix
     TABLE_NAME=$(echo "${TABLE_UUID_DIR}" | sed 's/-[0-9a-f]\{32\}$//')
 
+    # The snapshot holds every keyspace on the node. System keyspaces (node-local state, schema, roles
+    # and passwords) are never imported: loading them would roll back roles and passwords and overwrite
+    # this node's own ring state. Recreate the schema first if the tables are gone.
+    case "${KEYSPACE}" in
+      system|system_*) continue ;;
+    esac
+
     echo "--- Importing ${KEYSPACE}.${TABLE_NAME} ---"
     chown -R cassandra:cassandra "${SNAP_DIR}" 2>/dev/null || true
-    nodetool -u cassandra -pw "${CASSANDRA_JMX_PASSWORD}" import "${KEYSPACE}" "${TABLE_NAME}" "${SNAP_DIR}" \
+    nt import "${KEYSPACE}" "${TABLE_NAME}" "${SNAP_DIR}" \
       || { echo "WARN: nodetool import failed for ${KEYSPACE}.${TABLE_NAME}"; FAILED=$((FAILED + 1)); }
   done < <(find "${RESTORE_TMP}" -mindepth 4 -maxdepth 4 -type d)
 

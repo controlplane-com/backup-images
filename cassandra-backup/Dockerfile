@@ -1,4 +1,4 @@
-FROM cassandra:5.0
+FROM cassandra:5.0.9
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -18,6 +18,7 @@ RUN apt-get update \
 COPY backup.sh /usr/local/bin/backup.sh
 COPY restore.sh /usr/local/bin/restore.sh
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY auth.sh /usr/local/lib/cassandra-backup/auth.sh
 RUN chmod +x /usr/local/bin/backup.sh /usr/local/bin/restore.sh /usr/local/bin/entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
