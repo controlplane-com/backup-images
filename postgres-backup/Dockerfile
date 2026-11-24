@@ -1,5 +1,7 @@
-# Major version per tag: 18.x.y image tags build the default; 17.x.y tags build with
-#   --build-arg PG_IMAGE_TAG=17.12-trixie
+# Major version per tag: 18.x.y image tags build the default; other majors pass the
+# server image through the publish workflow's build_args input, e.g.
+#   17.x.y: PG_IMAGE_TAG=17.12-trixie
+#   19.x.y: PG_IMAGE_TAG=19.0-trixie
 ARG PG_IMAGE_TAG=18.7-trixie
 FROM postgres:${PG_IMAGE_TAG}
 

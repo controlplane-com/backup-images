@@ -11,6 +11,11 @@ on:
         description: "Image tag (e.g. 1.0.0)"
         required: true
         type: string
+      build_args:
+        description: "Optional build args, KEY=VALUE (e.g. PG_IMAGE_TAG=19.0-trixie)"
+        required: false
+        default: ""
+        type: string
 
 jobs:
   publish:
@@ -32,6 +37,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ inputs.image }}
+          build-args: ${{ inputs.build_args }}
           push: true
           tags: ghcr.io/controlplane-com/backup-images/${{ inputs.image }}:${{ inputs.tag }}
           platforms: linux/amd64
